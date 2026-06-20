@@ -1,0 +1,379 @@
+{% extends "insurance/base.html" %}
+{% block title %}Admin Panel{% endblock %}
+
+{% block content %}
+<div class="page-wrap fadein">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+    <div>
+      <h1 style="font-size:24px;font-weight:700;letter-spacing:-0.5px">Admin Panel</h1>
+      <p style="color:var(--text2);font-size:13px;margin-top:3px">Fraud monitoring · Risk management · User oversight</p>
+    </div>
+    <span class="pill pill-critical" style="font-size:11px">
+      {{ alerts|length }} unresolved alerts
+    </span>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Total Partners</div>
+      <div class="stat-value">{{ users|length }}</div>
+      <div class="stat-sub">Registered</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Critical Risk</div>
+      <div class="stat-value stat-down">{{ critical_users|length }}</div>
+      <div class="stat-sub">Fraud-flagged</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Released</div>
+      <div class="stat-value stat-up">₹{{ payout_stats.released|floatformat:0 }}</div>
+      <div class="stat-sub">Auto payouts</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Payouts Blocked</div>
+      <div class="stat-value stat-down">{{ payout_stats.blocked }}</div>
+      <div class="stat-sub">Fraud-held</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <div class="tab-item active" data-tab="alerts">🚨 Fraud Alerts</div>
+    <div class="tab-item" data-tab="users">👥 User Monitor</div>
+    <div class="tab-item" data-tab="graph">🕸 Fraud Network</div>
+    <div class="tab-item" data-tab="heatmap">📊 Risk Heatmap</div>
+    <div class="tab-item" data-tab="trigger">⚡ Trigger Event</div>
+    <div class="tab-item" data-tab="log">📋 Action Log</div>
+  </div>
+
+  <!-- ── TAB: Fraud Alerts ─────────────────────────── -->
+  <div data-tab-pane="alerts">
+    {% for alert in alerts %}
+    <div class="alert alert-{{ alert.severity }} fadein" id="alert-{{ alert.id }}">
+      <span class="alert-icon">
+        {% if alert.alert_type == 'gps_teleport' %}📍
+        {% elif alert.alert_type == 'shared_device' %}📱
+        {% elif alert.alert_type == 'overspeed' %}⚡
+        {% elif alert.alert_type == 'ip_cluster' %}🌐
+        {% elif alert.alert_type == 'sync_payout' %}⏱
+        {% else %}🚨{% endif %}
+      </span>
+      <div class="alert-body">
+        <div class="alert-title">
+          {{ alert.get_alert_type_display }}
+          <span style="font-size:10px;font-weight:400;opacity:.6;margin-left:6px">{{ alert.id }}</span>
+        </div>
+        <div class="alert-desc">{{ alert.description }}</div>
+        <div class="alert-meta">
+          Users: {% for p in alert.partners.all %}{{ p.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+          &nbsp;·&nbsp; {{ alert.created_at|timesince }} ago
+        </div>
+      </div>
+      <div class="alert-actions">
+        <span class="pill pill-{{ alert.severity }}">{{ alert.get_severity_display }}</span>
+        <div style="display:flex;gap:6px">
+          {% for p in alert.partners.all|slice:":1" %}
+          <button class="btn btn-sm btn-outline" data-action="monitor" data-user-id="{{ p.id }}">Monitor</button>
+          <button class="btn btn-sm btn-danger" data-action="block" data-user-id="{{ p.id }}">Block</button>
+          {% endfor %}
+          <button class="btn btn-sm btn-success" data-action="resolve" data-alert-id="{{ alert.id }}">Resolve</button>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="card" style="text-align:center;padding:40px;color:var(--text3)">
+      ✅ No unresolved fraud alerts
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ── TAB: User Monitor ─────────────────────────── -->
+  <div data-tab-pane="users" style="display:none">
+    <div style="margin-bottom:12px">
+      <input type="text" id="user-search" class="form-control" placeholder="Search by name, phone, zone…"
+             style="max-width:360px" oninput="filterUsers(this.value)">
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="table-wrap">
+        <table id="users-table">
+          <thead>
+            <tr>
+              <th>Partner</th>
+              <th>Zone</th>
+              <th>Risk</th>
+              <th>Fraud Score</th>
+              <th>Max Speed</th>
+              <th>GPS Anomalies</th>
+              <th>Plan</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+            <tr data-search="{{ u.name|lower }} {{ u.phone }} {{ u.get_zone_display|lower }}">
+              <td>
+                <div style="font-weight:600;font-size:13px">{{ u.name }}</div>
+                <div style="font-size:10px;color:var(--text3);font-family:var(--mono)">{{ u.phone }}</div>
+              </td>
+              <td style="font-size:12px">{{ u.get_zone_display }}</td>
+              <td><span class="pill pill-{{ u.risk_level }}">{{ u.get_risk_level_display }}</span></td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px;min-width:100px">
+                  <div class="risk-meter" style="width:60px" data-risk-score="{{ u.fraud_score }}">
+                    <div class="risk-fill"></div>
+                  </div>
+                  <span style="font-size:11px;font-family:var(--mono)">{{ u.fraud_score|floatformat:0 }}%</span>
+                </div>
+              </td>
+              <td>
+                <span class="td-mono" style="color:{% if u.max_speed_kmh > 100 %}var(--danger){% else %}var(--text2){% endif %}">
+                  {{ u.max_speed_kmh|floatformat:0 }} km/h
+                </span>
+              </td>
+              <td>
+                <span class="td-mono" style="color:{% if u.gps_anomalies > 3 %}var(--danger){% elif u.gps_anomalies > 1 %}var(--warn){% else %}var(--success){% endif %}">
+                  {{ u.gps_anomalies }}
+                </span>
+              </td>
+              <td style="font-size:12px">
+                {% with sub=u.active_subscription %}
+                {{ sub.plan.name|default:"No plan" }}
+                {% endwith %}
+              </td>
+              <td>
+                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                  <a href="{% url 'admin_user_detail' u.id %}" class="btn btn-xs btn-outline">View</a>
+                  <button class="btn btn-xs btn-warn" data-action="monitor" data-user-id="{{ u.id }}">Monitor</button>
+                  {% if u.risk_level == 'critical' %}
+                  <button class="btn btn-xs btn-danger" data-action="block" data-user-id="{{ u.id }}">Block</button>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: Fraud Network Graph ──────────────────── -->
+  <div data-tab-pane="graph" style="display:none">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🕸 Fraud Ring Network</div>
+        <span style="font-size:12px;color:var(--text3)">First 24 partners shown</span>
+      </div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">
+        Nodes sized by risk. Red edges = shared IP. Yellow dashed = shared device. Clusters = fraud rings.
+      </p>
+      <div id="fraud-graph"></div>
+      <div style="display:flex;gap:16px;margin-top:10px;font-size:12px;color:var(--text2)">
+        <span style="color:#ef4444">● Critical</span>
+        <span style="color:#f59e0b">● High</span>
+        <span style="color:#10b981">● Low / Medium</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: Risk Heatmap ─────────────────────────── -->
+  <div data-tab-pane="heatmap" style="display:none" id="heatmap-container">
+    <div class="card">
+      <div class="card-title">🗺 Risk Heatmap — Hyderabad Zones</div>
+      <div class="heatmap-grid" style="margin-bottom:16px">
+        {% for zr in zone_risks %}
+        {% with score=zr.avg_risk %}
+        <div class="heatmap-cell"
+             data-zone="{{ zr.zone }}" data-risk="{{ score }}" data-count="{{ zr.count }}"
+             style="background:rgba({% if score > 70 %}239,68,68{% elif score > 40 %}245,158,11{% else %}16,185,129{% endif %},{{ score|floatformat:0|add:"15" }}%);border:1px solid rgba({% if score > 70 %}239,68,68{% elif score > 40 %}245,158,11{% else %}16,185,129{% endif %},0.25)">
+          <div class="hm-zone">{{ zr.zone|truncatechars:12 }}</div>
+          <div class="hm-count">{{ zr.count }} users</div>
+          <div class="hm-score" style="color:{% if score > 70 %}#ef4444{% elif score > 40 %}#f59e0b{% else %}#10b981{% endif %}">{{ score }}%</div>
+        </div>
+        {% endwith %}
+        {% endfor %}
+      </div>
+      <div style="font-size:12px;color:var(--text3)">
+        🟢 Low risk &nbsp;·&nbsp; 🟡 Medium risk &nbsp;·&nbsp; 🔴 High risk
+      </div>
+    </div>
+
+    <!-- Top Risk Users -->
+    <div class="card">
+      <div class="card-title">📈 Top Risk Accounts</div>
+      <table>
+        <thead><tr><th>#</th><th>Partner</th><th>Zone</th><th>Risk Score</th><th>Level</th></tr></thead>
+        <tbody>
+          {% for u in users|dictsortreversed:"risk_score"|slice:":10" %}
+          <tr>
+            <td style="color:var(--text3);font-size:12px">{{ forloop.counter }}</td>
+            <td>
+              <div style="font-weight:600;font-size:13px">{{ u.name }}</div>
+              <div style="font-size:10px;font-family:var(--mono);color:var(--text3)">{{ u.phone }}</div>
+            </td>
+            <td style="font-size:12px">{{ u.get_zone_display }}</td>
+            <td>
+              <div class="risk-meter" style="width:120px" data-risk-score="{{ u.risk_score }}">
+                <div class="risk-fill"></div>
+              </div>
+            </td>
+            <td><span class="pill pill-{{ u.risk_level }}">{{ u.get_risk_level_display }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── TAB: Trigger Event ─────────────────────────── -->
+  <div data-tab-pane="trigger" style="display:none">
+    <div class="card-grid-2">
+      <div class="card">
+        <div class="card-title">⚡ Simulate Parametric Event</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:18px">
+          Manually fire a parametric trigger. The system will evaluate all active subscriptions
+          and auto-release eligible payouts.
+        </p>
+        <form id="trigger-event-form">
+          {% csrf_token %}
+          <div class="form-group">
+            <label class="form-label">Event Type</label>
+            <select name="event_type" class="form-control">
+              <option value="rain">🌧 Heavy Rain</option>
+              <option value="aqi">🌫 AQI Spike</option>
+              <option value="curfew">🚫 Zone Curfew</option>
+              <option value="cyclone">🌀 Cyclone Alert</option>
+              <option value="flood">🌊 Flood Warning</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Zone</label>
+            <select name="zone" class="form-control">
+              {% for val, label in request.user.ZONE_CHOICES %}
+              <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Measured Value (mm/hr or AQI index)</label>
+            <input type="number" name="value" class="form-control" value="65" min="1" max="999">
+            <div class="form-hint">Rain threshold: 50mm/hr · AQI threshold: 300</div>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            🚀 Trigger Event & Release Payouts
+          </button>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📋 Recent Parametric Events</div>
+        {% for event in events %}
+        <div class="event-item">
+          <span class="event-icon">
+            {% if event.event_type == 'rain' %}🌧{% elif event.event_type == 'aqi' %}🌫{% elif event.event_type == 'curfew' %}🚫{% else %}🌀{% endif %}
+          </span>
+          <div class="event-info">
+            <div class="event-name">{{ event.get_event_type_display }}</div>
+            <div class="event-meta">{{ event.get_zone_display }} · Value: {{ event.value }} · {{ event.timestamp|date:"d M H:i" }}</div>
+          </div>
+          <div class="event-amount">
+            {% if event.triggered %}
+            <div class="event-total" style="color:var(--success)">₹{{ event.total_payout|floatformat:0 }}</div>
+            <div class="event-count">{{ event.affected_users }} payouts</div>
+            {% else %}
+            <span class="pill pill-medium">Not triggered</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- AI Simulator -->
+    <div class="card" id="ai-simulator">
+      <div class="card-title">🤖 Live AI Risk Simulator</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px">
+        Adjust signals to see how the AI engine calculates risk scores in real time.
+      </p>
+      <div class="card-grid-2">
+        <div>
+          {% for field in "x"|ljust:"4" %}{% endfor %}
+          <div class="form-group">
+            <label class="form-label">Max Speed (km/h) &nbsp;<span id="val-speed" style="color:var(--accent2);font-family:var(--mono)">60 km/h</span></label>
+            <input type="range" id="sim-speed" min="0" max="200" value="60" class="form-control" style="padding:4px 0;border:none;background:none">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Behavior Score &nbsp;<span id="val-behavior" style="color:var(--accent2);font-family:var(--mono)">80%</span></label>
+            <input type="range" id="sim-behavior" min="0" max="1" step="0.01" value="0.80" class="form-control" style="padding:4px 0;border:none;background:none">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Network Risk &nbsp;<span id="val-network" style="color:var(--accent2);font-family:var(--mono)">30%</span></label>
+            <input type="range" id="sim-network" min="0" max="1" step="0.01" value="0.30" class="form-control" style="padding:4px 0;border:none;background:none">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Graph Score &nbsp;<span id="val-graph" style="color:var(--accent2);font-family:var(--mono)">20%</span></label>
+            <input type="range" id="sim-graph" min="0" max="1" step="0.01" value="0.20" class="form-control" style="padding:4px 0;border:none;background:none">
+          </div>
+        </div>
+        <div>
+          <div class="code-block" style="margin-bottom:16px">
+            RiskScore =<br>
+            &nbsp;&nbsp;<span style="color:#f59e0b">0.30 × SpeedScore</span>&nbsp;&nbsp;&nbsp;= <span id="comp-speed">0.150</span><br>
+            + <span style="color:#ef4444">0.30 × BehaviorRisk</span> = <span id="comp-behavior">0.060</span><br>
+            + <span style="color:#818cf8">0.20 × NetworkRisk</span>&nbsp;&nbsp;= <span id="comp-network">0.060</span><br>
+            + <span style="color:#3b82f6">0.20 × GraphScore</span>&nbsp;&nbsp;&nbsp;= <span id="comp-graph">0.040</span><br>
+            <span style="color:var(--text2);border-top:1px solid var(--border);display:block;margin-top:6px;padding-top:6px">
+              = <span id="comp-total" style="font-size:18px;font-weight:700">0.310</span>
+            </span>
+          </div>
+          <div id="sim-risk-fill-wrap" style="margin-bottom:14px">
+            <div class="risk-label"><span>Composite Score</span><span id="comp-total-pct" style="font-family:var(--mono)">31%</span></div>
+            <div class="risk-meter"><div class="risk-fill" id="sim-risk-fill" style="width:31%"></div></div>
+          </div>
+          <div id="sim-decision" style="padding:16px;border-radius:10px;text-align:center;font-size:24px;font-weight:700;letter-spacing:1px;border:1px solid">
+            ALLOW
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: Action Log ─────────────────────────────── -->
+  <div data-tab-pane="log" style="display:none">
+    <div class="card">
+      <div class="card-title">📋 Admin Action Log</div>
+      {% if action_log %}
+      <table>
+        <thead><tr><th>Time</th><th>Admin</th><th>Target</th><th>Action</th><th>Notes</th></tr></thead>
+        <tbody>
+          {% for log in action_log %}
+          <tr>
+            <td class="td-muted td-mono">{{ log.created_at|date:"d M H:i" }}</td>
+            <td style="font-size:13px">{{ log.admin.name|default:"—" }}</td>
+            <td style="font-size:13px">{{ log.partner.name|default:"—" }}</td>
+            <td><span class="pill {% if log.action == 'block' %}pill-blocked{% elif log.action == 'unblock' %}pill-released{% elif log.action == 'monitor' %}pill-medium{% else %}pill-info{% endif %}">{{ log.get_action_display }}</span></td>
+            <td style="font-size:12px;color:var(--text3)">{{ log.notes|truncatechars:60|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:var(--text3);text-align:center;padding:32px">No admin actions logged yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterUsers(query) {
+  const q = query.toLowerCase();
+  document.querySelectorAll('#users-table tbody tr').forEach(row => {
+    row.style.display = row.dataset.search?.includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

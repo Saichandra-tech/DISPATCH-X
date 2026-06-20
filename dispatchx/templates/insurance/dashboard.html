@@ -1,0 +1,282 @@
+{% extends "insurance/base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-wrap fadein" data-auto-refresh="30000">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+    <div>
+      <h1 style="font-size:24px;font-weight:700;letter-spacing:-0.5px">Dashboard</h1>
+      <p style="color:var(--text2);font-size:13px;margin-top:3px">
+        Parametric insurance overview &nbsp;·&nbsp; <span class="live-dot"></span>&nbsp; Live
+      </p>
+    </div>
+    <div style="font-size:13px;color:var(--text2)">{{ partner.name }} &nbsp;·&nbsp; {{ partner.get_zone_display }}</div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Total Received</div>
+      <div class="stat-value stat-up">₹{{ total_received|floatformat:0 }}</div>
+      <div class="stat-sub">Automated payouts</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active Triggers</div>
+      <div class="stat-value" style="color:var(--warn)">{{ active_events|length }}</div>
+      <div class="stat-sub">Weather + Zone events</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Risk Level</div>
+      <div class="stat-value" style="color:{{ risk_color }}">{{ partner.get_risk_level_display }}</div>
+      <div class="stat-sub stat-{{ partner.risk_level }}">Score: {{ partner.risk_score|floatformat:2 }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Blocked Payouts</div>
+      <div class="stat-value stat-down">{{ total_blocked }}</div>
+      <div class="stat-sub">Fraud-flagged</div>
+    </div>
+  </div>
+
+  <div class="card-grid-2">
+
+    <!-- Active Parametric Events -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🌦 Active Parametric Triggers</div>
+        <span class="pill pill-info" style="font-size:10px">Auto-trigger</span>
+      </div>
+      {% for event in active_events %}
+      <div class="event-item">
+        <span class="event-icon">
+          {% if event.event_type == 'rain' %}🌧
+          {% elif event.event_type == 'aqi' %}🌫
+          {% elif event.event_type == 'curfew' %}🚫
+          {% elif event.event_type == 'cyclone' %}🌀
+          {% else %}⚠{% endif %}
+        </span>
+        <div class="event-info">
+          <div class="event-name">{{ event.get_event_type_display }}</div>
+          <div class="event-meta">{{ event.zone|cut:"_"|title }} &nbsp;·&nbsp; {{ event.timestamp|timesince }} ago</div>
+        </div>
+        <div class="event-amount">
+          {% if event.triggered %}
+          <div class="event-total" style="color:var(--success)">₹{{ event.total_payout|floatformat:0 }}</div>
+          <div class="event-count">{{ event.affected_users }} released</div>
+          {% else %}
+          <span class="pill pill-medium">Monitoring</span>
+          {% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <p style="color:var(--text3);font-size:13px;padding:12px 0">No active events right now.</p>
+      {% endfor %}
+    </div>
+
+    <!-- Coverage Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🛡 Your Coverage</div>
+        {% if subscription %}
+        <span class="pill pill-active">Active</span>
+        {% else %}
+        <a href="{% url 'subscription' %}" class="btn btn-sm btn-primary">Subscribe</a>
+        {% endif %}
+      </div>
+
+      <div style="display:flex;gap:20px;margin-bottom:20px;align-items:center">
+        <div data-ring-score="{{ partner.risk_score }}" data-ring-size="72" data-ring-label="Trust Score"></div>
+        <div style="flex:1">
+          {% if subscription %}
+          <div style="font-size:13px;color:var(--text2);margin-bottom:4px">{{ subscription.plan.name }}</div>
+          <div style="font-size:26px;font-weight:700;font-family:var(--mono)">
+            ₹{{ subscription.plan.weekly_premium }}<span style="font-size:14px;font-weight:400;color:var(--text2)">/week</span>
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">Coverage: ₹{{ subscription.plan.daily_coverage }}/day</div>
+          <div style="margin-top:6px">
+            <span class="pill pill-{{ partner.risk_level }}">{{ partner.get_risk_level_display }} Risk</span>
+          </div>
+          {% else %}
+          <div style="color:var(--text3);font-size:14px">No active plan</div>
+          <a href="{% url 'subscription' %}" class="btn btn-primary btn-sm" style="margin-top:10px">Choose Plan</a>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Risk Meter -->
+      <div class="risk-label">
+        <span>Risk Score</span>
+        <span data-risk-val style="font-family:var(--mono)">—</span>
+      </div>
+      <div class="risk-meter" data-risk-score="{{ partner.risk_score }}">
+        <div class="risk-fill"></div>
+      </div>
+
+      <!-- Recent Payouts -->
+      <div style="margin-top:18px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)">Recent Payouts</div>
+        {% for payout in recent_payouts %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:12px;font-weight:600">{{ payout.event.get_event_type_display|default:payout.reason|truncatechars:30 }}</div>
+            <div style="font-size:11px;color:var(--text3)">{{ payout.created_at|date:"d M Y" }}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:13px;font-family:var(--mono);font-weight:600">₹{{ payout.amount|floatformat:0 }}</div>
+            <span class="pill pill-{{ payout.status }}">{{ payout.get_status_display }}</span>
+          </div>
+        </div>
+        {% empty %}
+        <p style="color:var(--text3);font-size:13px">No payouts yet this cycle.</p>
+        {% endfor %}
+        <a href="{% url 'payouts' %}" class="btn btn-outline btn-sm" style="margin-top:12px">View All Payouts →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Location -->
+  <div class="card" id="live-location-card">
+    <div class="card-header">
+      <div class="card-title">📍 Live Location</div>
+      <span class="pill pill-info" id="gps-status">Idle</span>
+    </div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+      <div style="min-width:160px">
+        <div style="font-size:11px;color:var(--text3)">Latitude</div>
+        <div style="font-size:16px;font-family:var(--mono)" id="gps-lat">
+          {% if last_gps %}{{ last_gps.latitude|floatformat:5 }}{% else %}—{% endif %}
+        </div>
+      </div>
+      <div style="min-width:160px">
+        <div style="font-size:11px;color:var(--text3)">Longitude</div>
+        <div style="font-size:16px;font-family:var(--mono)" id="gps-lon">
+          {% if last_gps %}{{ last_gps.longitude|floatformat:5 }}{% else %}—{% endif %}
+        </div>
+      </div>
+      <div style="min-width:140px">
+        <div style="font-size:11px;color:var(--text3)">Speed</div>
+        <div style="font-size:16px;font-family:var(--mono)" id="gps-speed">
+          {% if last_gps %}{{ last_gps.speed_kmh|floatformat:1 }} km/h{% else %}—{% endif %}
+        </div>
+      </div>
+      <div style="margin-left:auto;font-size:12px;color:var(--text3)">
+        Last update: <span id="gps-updated">{% if last_gps %}{{ last_gps.timestamp|timesince }} ago{% else %}never{% endif %}</span>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-top:8px" id="gps-msg">
+      Enable location access for real-time updates.
+    </div>
+  </div>
+
+  <!-- Payout Flow Architecture -->
+  <div class="card">
+    <div class="card-title">⚡ Parametric Payout Flow</div>
+    <div class="flow-row"></div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Simple flow — template tag 'split' not built-in, render manually
+document.querySelector('.flow-row').innerHTML = `
+  ${[
+    {icon:'📡',name:'Trigger',    sub:'Weather / AQI API', color:'#3b82f6'},
+    {icon:'🤖',name:'AI Check',   sub:'Risk scoring engine',color:'#8b5cf6'},
+    {icon:'🔍',name:'Fraud Scan', sub:'Multi-signal check', color:'#f59e0b'},
+    {icon:'⚖️',name:'Decision',   sub:'Allow · Delay · Block',color:'#6366f1'},
+    {icon:'💸',name:'Payout',     sub:'Auto-release wallet',color:'#10b981'},
+  ].map((s, i, arr) => `
+    <div class="flow-step">
+      <div class="flow-circle" style="border-color:${s.color};background:${s.color}18;font-size:20px">${s.icon}</div>
+      <div class="flow-step-name" style="color:${s.color}">${s.name}</div>
+      <div class="flow-step-sub">${s.sub}</div>
+    </div>
+    ${i < arr.length - 1 ? `<div class="flow-connector" style="background:linear-gradient(90deg,${s.color},${arr[i+1].color})"></div>` : ''}
+  `).join('')}`;
+
+// Live location ping (browser GPS → server)
+document.addEventListener('DOMContentLoaded', () => {
+  const statusEl = document.getElementById('gps-status');
+  const latEl    = document.getElementById('gps-lat');
+  const lonEl    = document.getElementById('gps-lon');
+  const speedEl  = document.getElementById('gps-speed');
+  const updEl    = document.getElementById('gps-updated');
+  const msgEl    = document.getElementById('gps-msg');
+
+  if (!statusEl || !latEl || !lonEl || !speedEl || !updEl || !msgEl) return;
+
+  const setStatus = (text, cls) => {
+    statusEl.textContent = text;
+    statusEl.className = `pill ${cls}`;
+  };
+
+  const formatAgo = (ms) => {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    return `${h}h ago`;
+  };
+
+  const updateUI = (pos) => {
+    const c = pos.coords;
+    latEl.textContent   = c.latitude.toFixed(5);
+    lonEl.textContent   = c.longitude.toFixed(5);
+    const spd = c.speed == null ? 0 : (c.speed * 3.6);
+    speedEl.textContent = `${spd.toFixed(1)} km/h`;
+    updEl.textContent   = 'just now';
+  };
+
+  const send = async (pos) => {
+    updateUI(pos);
+    msgEl.textContent = 'Location synced to your account.';
+    setStatus('Syncing', 'pill-medium');
+    try {
+      if (!DX.csrfToken) DX.csrfToken = getCookie('csrftoken');
+      const c = pos.coords;
+      const spd = c.speed == null ? 0 : (c.speed * 3.6);
+      await DX.post('/api/location/', {
+        lat: c.latitude,
+        lon: c.longitude,
+        speed_kmh: spd,
+        accuracy: c.accuracy,
+      });
+      setStatus('Live', 'pill-active');
+      const t0 = Date.now();
+      setTimeout(() => { updEl.textContent = formatAgo(Date.now() - t0); }, 3000);
+    } catch (e) {
+      setStatus('Offline', 'pill-medium');
+      msgEl.textContent = 'Unable to sync location. Check connection.';
+    }
+  };
+
+  const err = (e) => {
+    setStatus('Denied', 'pill-medium');
+    msgEl.textContent = 'Location permission is required for live updates.';
+  };
+
+  if (!navigator.geolocation) {
+    setStatus('Unsupported', 'pill-medium');
+    msgEl.textContent = 'Geolocation is not supported in this browser.';
+    return;
+  }
+
+  setStatus('Waiting', 'pill-info');
+  navigator.geolocation.getCurrentPosition(send, err, {
+    enableHighAccuracy: true,
+    maximumAge: 10000,
+    timeout: 8000,
+  });
+  setInterval(() => {
+    navigator.geolocation.getCurrentPosition(send, err, {
+      enableHighAccuracy: true,
+      maximumAge: 10000,
+      timeout: 8000,
+    });
+  }, 15000);
+});
+</script>
+{% endblock %}

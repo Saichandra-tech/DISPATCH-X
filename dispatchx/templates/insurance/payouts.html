@@ -1,0 +1,110 @@
+{% extends "insurance/base.html" %}
+{% block title %}Payouts{% endblock %}
+
+{% block content %}
+<div class="page-wrap fadein">
+  <div style="margin-bottom:24px">
+    <h1 style="font-size:24px;font-weight:700;letter-spacing:-0.5px">Payout History</h1>
+    <p style="color:var(--text2);font-size:13px;margin-top:3px">Automated parametric compensation records</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+    <div class="stat-card">
+      <div class="stat-label">Released</div>
+      <div class="stat-value stat-up">₹{{ totals.released|floatformat:0 }}</div>
+      <div class="stat-sub">Auto-paid out</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Delayed</div>
+      <div class="stat-value" style="color:var(--warn)">₹{{ totals.delayed|floatformat:0 }}</div>
+      <div class="stat-sub">Pending verification</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Blocked</div>
+      <div class="stat-value stat-down">₹{{ totals.blocked|floatformat:0 }}</div>
+      <div class="stat-sub">Fraud-flagged</div>
+    </div>
+  </div>
+
+  <!-- Filter Tabs -->
+  <div class="tab-bar">
+    <a href="?status=" class="tab-item {% if not filter_status %}active{% endif %}">All</a>
+    <a href="?status=released" class="tab-item {% if filter_status == 'released' %}active{% endif %}">Released</a>
+    <a href="?status=delayed"  class="tab-item {% if filter_status == 'delayed' %}active{% endif %}">Delayed</a>
+    <a href="?status=blocked"  class="tab-item {% if filter_status == 'blocked' %}active{% endif %}">Blocked</a>
+  </div>
+
+  <!-- Table -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Payout ID</th>
+            <th>Date</th>
+            <th>Trigger</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payouts %}
+          <tr>
+            <td class="td-mono td-muted">PYT-{{ p.id }}</td>
+            <td style="font-size:12px">{{ p.created_at|date:"d M Y, H:i" }}</td>
+            <td>{{ p.event.get_event_type_display|default:"Manual" }}</td>
+            <td><span style="font-family:var(--mono);font-weight:600">₹{{ p.amount|floatformat:0 }}</span></td>
+            <td><span class="pill pill-{{ p.status }}">{{ p.get_status_display }}</span></td>
+            <td style="font-size:11px;color:var(--text3);max-width:200px">{{ p.reason|truncatechars:50 }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" style="text-align:center;color:var(--text3);padding:32px">No payouts in this category.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Fraud Check Breakdown -->
+  <div class="card">
+    <div class="card-title">🔍 Your Fraud Check Status</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">
+      Every payout passes through our AI fraud pipeline before release.
+    </p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      {% with partner=request.user %}
+      {% with spd_ok=partner.max_speed_kmh|floatformat:0 %}
+        <div style="background:{% if partner.max_speed_kmh < 100 %}rgba(16,185,129,0.1){% else %}rgba(239,68,68,0.1){% endif %};border:1px solid {% if partner.max_speed_kmh < 100 %}rgba(16,185,129,0.3){% else %}rgba(239,68,68,0.3){% endif %};border-radius:8px;padding:10px 14px">
+          <span style="color:{% if partner.max_speed_kmh < 100 %}var(--success){% else %}var(--danger){% endif %};font-weight:600">
+            {% if partner.max_speed_kmh < 100 %}✓{% else %}✗{% endif %} Speed Check
+          </span>
+          <span style="color:var(--text3);font-size:11px;margin-left:8px">{{ spd_ok }} km/h</span>
+        </div>
+        <div style="background:{% if partner.gps_anomalies < 3 %}rgba(16,185,129,0.1){% else %}rgba(239,68,68,0.1){% endif %};border:1px solid {% if partner.gps_anomalies < 3 %}rgba(16,185,129,0.3){% else %}rgba(239,68,68,0.3){% endif %};border-radius:8px;padding:10px 14px">
+          <span style="color:{% if partner.gps_anomalies < 3 %}var(--success){% else %}var(--danger){% endif %};font-weight:600">
+            {% if partner.gps_anomalies < 3 %}✓{% else %}✗{% endif %} GPS Stability
+          </span>
+          <span style="color:var(--text3);font-size:11px;margin-left:8px">{{ partner.gps_anomalies }} anomalies</span>
+        </div>
+        <div style="background:{% if partner.behavior_score > 0.5 %}rgba(16,185,129,0.1){% else %}rgba(239,68,68,0.1){% endif %};border:1px solid {% if partner.behavior_score > 0.5 %}rgba(16,185,129,0.3){% else %}rgba(239,68,68,0.3){% endif %};border-radius:8px;padding:10px 14px">
+          <span style="color:{% if partner.behavior_score > 0.5 %}var(--success){% else %}var(--danger){% endif %};font-weight:600">
+            {% if partner.behavior_score > 0.5 %}✓{% else %}✗{% endif %} Behavior
+          </span>
+          <span style="color:var(--text3);font-size:11px;margin-left:8px">{{ partner.behavior_score|floatformat:2 }}</span>
+        </div>
+        <div style="background:{% if partner.risk_level != 'critical' %}rgba(16,185,129,0.1){% else %}rgba(239,68,68,0.1){% endif %};border:1px solid {% if partner.risk_level != 'critical' %}rgba(16,185,129,0.3){% else %}rgba(239,68,68,0.3){% endif %};border-radius:8px;padding:10px 14px">
+          <span style="color:{% if partner.risk_level != 'critical' %}var(--success){% else %}var(--danger){% endif %};font-weight:600">
+            {% if partner.risk_level != 'critical' %}✓{% else %}✗{% endif %} Network
+          </span>
+          <span style="color:var(--text3);font-size:11px;margin-left:8px">{{ partner.get_risk_level_display }}</span>
+        </div>
+      {% endwith %}
+      {% endwith %}
+    </div>
+  </div>
+</div>
+{% endblock %}

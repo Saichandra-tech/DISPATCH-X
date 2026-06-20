@@ -1,0 +1,140 @@
+{% extends "insurance/base.html" %}
+{% block title %}{{ target.name }} — Detail{% endblock %}
+
+{% block content %}
+<div class="page-wrap fadein">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+    <a href="{% url 'admin_panel' %}" class="btn btn-outline btn-sm">← Back</a>
+    <div>
+      <h1 style="font-size:22px;font-weight:700">{{ target.name }}</h1>
+      <p style="font-size:12px;color:var(--text3);font-family:var(--mono)">{{ target.phone }} · {{ target.get_zone_display }}</p>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn btn-warn btn-sm" data-action="monitor" data-user-id="{{ target.id }}">Set Monitor</button>
+      <button class="btn btn-warn btn-sm" data-action="delay_payout" data-user-id="{{ target.id }}">Delay Payout</button>
+      <button class="btn btn-danger btn-sm" data-action="block" data-user-id="{{ target.id }}">Block Account</button>
+    </div>
+  </div>
+
+  <div class="card-grid-2">
+    <!-- Profile -->
+    <div class="card">
+      <div class="card-title">👤 Partner Profile</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        {% for label, value in target.name|yesno:"," %}{% endfor %}
+        {% with fields="Joined Date:Deliveries/Day:Avg Daily Earnings:IP Address:Device ID:Behavior Score:Max Speed:GPS Anomalies" %}
+        {% endwith %}
+
+        {% for item in "x"|ljust:"10" %}{% endfor %}
+
+        <div style="background:var(--bg3);border-radius:8px;padding:10px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:3px">Joined</div>
+          <div style="font-size:13px;font-family:var(--mono)">{{ target.joined_date|date:"d M Y" }}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:3px">Deliveries/Day</div>
+          <div style="font-size:13px;font-family:var(--mono)">{{ target.deliveries_per_day }}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:3px">Avg Daily Earnings</div>
+          <div style="font-size:13px;font-family:var(--mono)">₹{{ target.avg_daily_earnings|floatformat:0 }}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:3px">IP Address</div>
+          <div style="font-size:13px;font-family:var(--mono);color:{% if '192.168' in target.ip_address|default:'' %}var(--danger){% else %}var(--text){% endif %}">{{ target.ip_address|default:"Unknown" }}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:3px">Device ID</div>
+          <div style="font-size:13px;font-family:var(--mono)">{{ target.device_id|default:"Unknown" }}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:3px">Behavior Score</div>
+          <div style="font-size:13px;font-family:var(--mono);color:{% if target.behavior_score > 0.5 %}var(--success){% else %}var(--danger){% endif %}">{{ target.behavior_score|floatformat:2 }}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:3px">Max Speed</div>
+          <div style="font-size:13px;font-family:var(--mono);color:{% if target.max_speed_kmh > 100 %}var(--danger){% else %}var(--text){% endif %}">{{ target.max_speed_kmh|floatformat:0 }} km/h</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:3px">GPS Anomalies</div>
+          <div style="font-size:13px;font-family:var(--mono);color:{% if target.gps_anomalies > 3 %}var(--danger){% elif target.gps_anomalies > 1 %}var(--warn){% else %}var(--success){% endif %}">{{ target.gps_anomalies }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk Panel -->
+    <div class="card">
+      <div class="card-title">⚖️ Risk Assessment</div>
+      <div style="display:flex;gap:20px;align-items:center;margin-bottom:20px">
+        <div data-ring-score="{{ target.risk_score }}" data-ring-size="80" data-ring-label="Risk Score"></div>
+        <div style="flex:1">
+          <div style="font-size:28px;font-weight:700;font-family:var(--mono);letter-spacing:-1px">
+            {{ target.risk_score|floatformat:2 }}
+          </div>
+          <span class="pill pill-{{ target.risk_level }}" style="margin-top:6px;font-size:13px">
+            {{ target.get_risk_level_display }} Risk
+          </span>
+          <div style="font-size:12px;color:var(--text2);margin-top:8px">
+            Fraud Score: <span style="font-family:var(--mono)">{{ target.fraud_score|floatformat:2 }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="risk-meter" data-risk-score="{{ target.risk_score }}" style="margin-bottom:16px">
+        <div class="risk-fill"></div>
+      </div>
+
+      <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px">Decision Engine Output</div>
+      <div style="padding:14px;border-radius:10px;text-align:center;border:1px solid;
+        {% if target.risk_level == 'critical' %}background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.3);color:#fca5a5;
+        {% elif target.risk_level == 'high' %}background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.3);color:#fcd34d;
+        {% elif target.risk_level == 'medium' %}background:rgba(99,102,241,0.1);border-color:rgba(99,102,241,0.3);color:var(--accent2);
+        {% else %}background:rgba(16,185,129,0.1);border-color:rgba(16,185,129,0.3);color:#6ee7b7;{% endif %}
+        font-size:20px;font-weight:700;letter-spacing:1px;">
+        {% if target.risk_level == 'critical' %}BLOCK
+        {% elif target.risk_level == 'high' %}OTP VERIFY
+        {% elif target.risk_level == 'medium' %}MONITOR
+        {% else %}ALLOW{% endif %}
+      </div>
+
+      <!-- Fraud Alerts -->
+      {% if alerts %}
+      <div style="margin-top:16px">
+        <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px">Fraud Alerts</div>
+        {% for alert in alerts %}
+        <div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+          <span class="pill pill-{{ alert.severity }}">{{ alert.severity }}</span>
+          <span style="font-size:12px">{{ alert.get_alert_type_display }}</span>
+          <span style="font-size:11px;color:var(--text3);margin-left:auto">{{ alert.created_at|timesince }} ago</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Payout History -->
+  <div class="card">
+    <div class="card-title">💸 Payout History</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Date</th><th>Event</th><th>Amount</th><th>Status</th><th>Reason</th></tr></thead>
+        <tbody>
+          {% for p in payouts %}
+          <tr>
+            <td class="td-mono td-muted">PYT-{{ p.id }}</td>
+            <td style="font-size:12px">{{ p.created_at|date:"d M Y H:i" }}</td>
+            <td>{{ p.event.get_event_type_display|default:"Manual" }}</td>
+            <td><span style="font-family:var(--mono);font-weight:600">₹{{ p.amount|floatformat:0 }}</span></td>
+            <td><span class="pill pill-{{ p.status }}">{{ p.get_status_display }}</span></td>
+            <td style="font-size:11px;color:var(--text3)">{{ p.reason|truncatechars:50 }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">No payouts on record.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

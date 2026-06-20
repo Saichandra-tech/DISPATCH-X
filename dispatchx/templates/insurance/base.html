@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}DispatchX{% endblock %} — Parametric Insurance</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+{% if user.is_authenticated %}
+<div class="app-layout">
+
+  <!-- ── Sidebar ───────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">DispatchX</div>
+      <div class="logo-sub">Parametric Insurance</div>
+    </div>
+
+    <div class="sidebar-user">
+      <div class="user-name">{{ user.name }}</div>
+      <div class="user-zone">{{ user.get_zone_display }}</div>
+      <div class="user-badges">
+        <span class="pill pill-{{ user.risk_level }}">{{ user.get_risk_level_display }} Risk</span>
+        {% with sub=user.active_subscription %}
+          {% if sub %}<span class="pill pill-info" style="font-size:10px">{{ sub.plan.name }}</span>{% endif %}
+        {% endwith %}
+      </div>
+    </div>
+
+    <nav class="nav-section" style="flex:1">
+      <div class="nav-label" style="margin-top:8px">Overview</div>
+      <a href="{% url 'dashboard' %}"     class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+        <span class="nav-icon">⬡</span> Dashboard
+      </a>
+      <a href="{% url 'subscription' %}"  class="nav-item {% if request.resolver_match.url_name == 'subscription' %}active{% endif %}">
+        <span class="nav-icon">🛡</span> My Plan
+      </a>
+      <a href="{% url 'payouts' %}"       class="nav-item {% if request.resolver_match.url_name == 'payouts' %}active{% endif %}">
+        <span class="nav-icon">💸</span> Payouts
+      </a>
+      {% if user.is_admin %}
+      <div class="nav-label" style="margin-top:12px">Admin</div>
+      <a href="{% url 'admin_panel' %}"   class="nav-item {% if request.resolver_match.url_name == 'admin_panel' %}active{% endif %}">
+        <span class="nav-icon">⚙️</span> Admin Panel
+        <span class="nav-badge" id="alert-count">!</span>
+      </a>
+      {% endif %}
+    </nav>
+
+    <div class="sidebar-footer">
+      <div>v1.0.0 · DispatchX</div>
+      <div class="live-indicator">
+        <span class="live-dot"></span> All systems live
+      </div>
+      <a href="{% url 'logout' %}" class="nav-item btn-outline" style="margin-top:8px;font-size:12px;padding:6px 10px">
+        <span>↩</span> Logout
+      </a>
+    </div>
+  </aside>
+
+  <!-- ── Main ──────────────────────────────────────── -->
+  <main class="main-content">
+    <!-- Live Ticker -->
+    <div class="ticker-bar">
+      <div class="ticker-inner" id="ticker">
+        <span class="ticker-item" style="color:#3b82f6">🌧 Heavy Rain triggered in Hyderabad Central · 18 payouts released</span>
+        <span class="ticker-sep">|</span>
+        <span class="ticker-item" style="color:#f59e0b">🌫 AQI Spike in Banjara Hills · 12 payouts · ₹3,600 released</span>
+        <span class="ticker-sep">|</span>
+        <span class="ticker-item" style="color:#ef4444">🚨 GPS Teleportation detected · 3 accounts flagged</span>
+        <span class="ticker-sep">|</span>
+        <span class="ticker-item" style="color:#8b5cf6">🌀 Cyclone Alert · Zone curfew active in Secunderabad</span>
+        <span class="ticker-sep">|</span>
+        <span class="ticker-item" style="color:#10b981">✅ 47 payouts auto-released today · ₹14,200 total</span>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+    <div class="messages-bar">
+      {% for message in messages %}
+      <div class="toast toast-{% if message.tags == 'error' %}error{% else %}success{% endif %}">
+        {{ message }}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Page content -->
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+{% else %}
+  {% block auth_content %}{% endblock %}
+{% endif %}
+
+<script src="{% static 'js/main.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

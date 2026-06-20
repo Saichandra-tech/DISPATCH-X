@@ -1,0 +1,51 @@
+{% extends "insurance/base.html" %}
+{% block title %}Login{% endblock %}
+
+{% block auth_content %}
+<div class="auth-page">
+  <div class="auth-card fadein">
+    <div class="auth-logo">
+      <div class="logo-mark">DispatchX</div>
+      <div class="logo-sub" style="text-align:center;margin-top:4px">Parametric Insurance for Delivery Partners</div>
+    </div>
+
+    <div class="auth-title">Welcome back</div>
+    <div class="auth-sub">Sign in to your account</div>
+
+    {% if error %}
+    <div class="alert alert-high" style="margin-bottom:16px">
+      <span class="alert-icon">⚠</span>
+      <div>{{ error }}</div>
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'login' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+
+      <div class="form-group">
+        <label class="form-label">Phone Number</label>
+        <input type="tel" name="phone" class="form-control" placeholder="e.g. 9876543210" required autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" name="password" class="form-control" placeholder="Your password" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" style="margin-top:8px">
+        Sign In →
+      </button>
+    </form>
+
+    <div class="auth-divider">── or ──</div>
+    <p style="font-size:13px;text-align:center;color:var(--text2)">
+      New here? <a href="{% url 'signup' %}" class="auth-link">Create account</a>
+    </p>
+
+    <div style="margin-top:20px;padding:14px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text3)">
+      <div style="font-weight:600;color:var(--text2);margin-bottom:6px">Demo Credentials</div>
+      <div>Partner: <span style="font-family:var(--mono);color:var(--accent2)">9876543210 / demo123</span></div>
+      <div>Admin:   <span style="font-family:var(--mono);color:var(--accent2)">9000000000 / admin123</span></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

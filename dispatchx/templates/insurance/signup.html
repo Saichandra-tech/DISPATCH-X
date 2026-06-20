@@ -1,0 +1,54 @@
+{% extends "insurance/base.html" %}
+{% block title %}Sign Up{% endblock %}
+
+{% block auth_content %}
+<div class="auth-page">
+  <div class="auth-card fadein">
+    <div class="auth-logo">
+      <div class="logo-mark">DispatchX</div>
+    </div>
+
+    <div class="auth-title">Join DispatchX</div>
+    <div class="auth-sub">Protect your delivery income from disruptions</div>
+
+    {% if error %}
+    <div class="alert alert-high" style="margin-bottom:16px">
+      <span class="alert-icon">⚠</span>
+      <div>{{ error }}</div>
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'signup' %}">
+      {% csrf_token %}
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" name="name" class="form-control" placeholder="Your name" required autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone Number</label>
+        <input type="tel" name="phone" class="form-control" placeholder="10-digit mobile number" required>
+        <div class="form-hint">This is your login ID</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Delivery Zone</label>
+        <select name="zone" class="form-control" required>
+          {% for val, label in zones %}
+          <option value="{{ val }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" name="password" class="form-control" placeholder="Choose a password" required minlength="6">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" style="margin-top:8px">
+        Create Account →
+      </button>
+    </form>
+
+    <p style="font-size:13px;text-align:center;margin-top:16px;color:var(--text2)">
+      Already have an account? <a href="{% url 'login' %}" class="auth-link">Sign in</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

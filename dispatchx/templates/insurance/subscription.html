@@ -1,0 +1,120 @@
+{% extends "insurance/base.html" %}
+{% block title %}Choose Plan{% endblock %}
+
+{% block content %}
+<div class="page-wrap fadein">
+  <div style="margin-bottom:24px">
+    <h1 style="font-size:24px;font-weight:700;letter-spacing:-0.5px">Choose Your Plan</h1>
+    <p style="color:var(--text2);font-size:13px;margin-top:3px">Risk-based weekly insurance for delivery partners</p>
+  </div>
+
+  <!-- AI Risk Banner -->
+  <div class="card" style="background:rgba(245,158,11,0.06);border-color:rgba(245,158,11,0.22);margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:22px">📊</span>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:#fcd34d">AI Risk Assessment — {{ partner.name }}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:3px">
+          Zone: {{ partner.get_zone_display }} &nbsp;·&nbsp;
+          Risk Level: <span style="color:{{ partner.risk_color }};font-weight:600">{{ partner.get_risk_level_display }}</span>
+          &nbsp;·&nbsp;
+          Risk Score: <span style="font-family:var(--mono);color:var(--accent2)">{{ partner.risk_score|floatformat:2 }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plan Selection Form -->
+  <form method="post" action="{% url 'subscription' %}">
+    {% csrf_token %}
+    <input type="hidden" name="plan_id" id="selected-plan-id" value="">
+
+    <div class="plan-grid">
+      {% for plan in plans %}
+      <div class="plan-card {% if current_sub.plan == plan %}selected{% endif %}"
+           data-plan="{{ plan.id }}"
+           onclick="selectPlan({{ plan.id }}, '{{ plan.tier|yesno:'#10b981,#f59e0b,#ef4444' }}')">
+
+        {% if plan.tier == 'medium' %}
+        <div class="badge-popular">MOST POPULAR</div>
+        {% endif %}
+
+        <div style="font-size:22px;margin-bottom:8px">
+          {% if plan.tier == 'low' %}🛡{% elif plan.tier == 'medium' %}⛈{% else %}🔰{% endif %}
+        </div>
+        <div class="plan-name">{{ plan.name }}</div>
+        <div class="plan-price" style="color:{% if plan.tier == 'low' %}#10b981{% elif plan.tier == 'medium' %}#f59e0b{% else %}#ef4444{% endif %}">
+          ₹{{ plan.weekly_premium }}<span class="plan-price-sub">/week</span>
+        </div>
+        <div class="plan-desc">{{ plan.description }}</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
+          Coverage: ₹{{ plan.daily_coverage }}/day
+        </div>
+
+        {% if plan.covers_rain %}
+        <div class="plan-cover" style="color:{% if plan.tier == 'low' %}#10b981{% elif plan.tier == 'medium' %}#f59e0b{% else %}#ef4444{% endif %}">✓ Rain protection</div>
+        {% endif %}
+        {% if plan.covers_aqi %}
+        <div class="plan-cover" style="color:#f59e0b">✓ AQI protection</div>
+        {% endif %}
+        {% if plan.covers_curfew %}
+        <div class="plan-cover" style="color:#ef4444">✓ Zone curfew cover</div>
+        {% endif %}
+        {% if plan.covers_cyclone %}
+        <div class="plan-cover" style="color:#8b5cf6">✓ Cyclone alert cover</div>
+        {% endif %}
+
+        <div class="plan-checkmark" style="display:{% if current_sub.plan == plan %}flex{% else %}none{% endif %};background:{% if plan.tier == 'low' %}#10b981{% elif plan.tier == 'medium' %}#f59e0b{% else %}#ef4444{% endif %}">✓</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div style="display:flex;align-items:center;gap:14px">
+      <button type="submit" class="btn btn-primary" style="padding:11px 28px" id="subscribe-btn">
+        Subscribe Now →
+      </button>
+      {% if current_sub %}
+      <span style="font-size:13px;color:var(--success)">
+        ✓ Current: {{ current_sub.plan.name }} — expires {{ current_sub.end_date|date:"d M Y" }}
+      </span>
+      {% endif %}
+      <div style="margin-left:auto;font-size:12px;color:var(--text3)">
+        7-day coverage · Auto-renews weekly · Cancel anytime
+      </div>
+    </div>
+  </form>
+
+  <!-- Risk Pricing Model -->
+  <div class="card" style="margin-top:24px">
+    <div class="card-title">🤖 Risk Pricing Formula</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">
+      Your premium is calculated using our AI risk engine based on location, behavior, and historical disruptions.
+    </p>
+    <div class="code-block">
+      <span style="color:#10b981">RiskScore</span> = <span style="color:#f59e0b">w1</span>(GPS_Anomaly) + <span style="color:#ef4444">w2</span>(BehaviorRisk) + <span style="color:#818cf8">w3</span>(NetworkRisk) + <span style="color:#3b82f6">w4</span>(GraphScore)<br>
+      <br>
+      <span class="code-comment">// Weights: w1=0.30  w2=0.30  w3=0.20  w4=0.20</span><br>
+      <br>
+      Low    → 0.00–0.35  → <span style="color:#10b981">₹20/week</span><br>
+      Medium → 0.35–0.65  → <span style="color:#f59e0b">₹35/week</span><br>
+      High   → 0.65+      → <span style="color:#ef4444">₹50/week</span>
+    </div>
+  </div>
+</div>
+
+{% block extra_js %}
+<script>
+// Pre-select current plan
+{% if current_sub %}
+selectPlan({{ current_sub.plan.id }}, '{% if current_sub.plan.tier == "low" %}#10b981{% elif current_sub.plan.tier == "medium" %}#f59e0b{% else %}#ef4444{% endif %}');
+{% endif %}
+
+document.getElementById('subscribe-btn').addEventListener('click', function(e) {
+  if (!document.getElementById('selected-plan-id').value) {
+    e.preventDefault();
+    DX.showToast('Please select a plan first', 'error');
+  }
+});
+</script>
+{% endblock %}
+{% endblock %}
